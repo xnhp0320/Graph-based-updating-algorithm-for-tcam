@@ -1,5 +1,5 @@
-CPP = g++
-CFLGA =  -g -Wall -Wsign-compare -Wformat -std=c++0x -O2
+CPP = clang++
+CFLGA =  -g -Wall -Wsign-compare -Wformat -std=c++0x 
 LFLGA = -lm
 
 SRC=update.cc rulesutils.cc rtrie.cc  tcam.cc

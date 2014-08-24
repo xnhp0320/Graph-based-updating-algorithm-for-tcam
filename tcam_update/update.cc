@@ -15,6 +15,8 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <queue>
+#include <utility>
+#include <set>
 
 #include "update.h"
 #include "tcam.h"
@@ -78,6 +80,10 @@ void build_graph(vector<pc_rule*> &pc, vector<struct node *> &G)
             } 
         }
     }
+
+    for(size_t i = 0; i < pc.size(); i++) {
+        reverse(G[i]->in.begin(), G[i]->in.end());
+    }
 }
 
 
@@ -133,7 +139,7 @@ int dfs(struct node *n)
 }
 
 
-
+#if 0
 void compute_cost(struct node *n) 
 {
     int contribute = 0;
@@ -166,6 +172,7 @@ void compute_cost(struct node *n)
     //    n->cost = 0;
 
 }
+#endif
 
 //we have pc of rules, tcam of rules, and Graph index of rules.
 //the Graph index of rules and tcam of rules should be the same, 
@@ -212,7 +219,7 @@ void del_rule(tcam & tmap, vector<pc_rule*> &pc, pc_rule *r)
     n->out.clear();
     n->index = -1;
     n->move = -1;
-    n->cost = -1;
+    //n->cost = -1;
     n->r = nullptr; 
     n->valid = false;
 
@@ -274,7 +281,7 @@ void graph_del(pc_rule *r)
     n->in.clear();
     n->out.clear();
     n->move = -1;
-    n->cost = -1;
+    //n->cost = -1;
     //n->valid = false;
 }
 
@@ -411,7 +418,7 @@ void Graph_add(tcam & tmap, vector<pc_rule*> &pc_graph, vector<struct node *> &G
         }
     }
 }
-
+#if 0
 bool lazy_check(tcam &tmap, pc_rule *r, int pos, vector<pc_rule*> &pc, vector<struct node*> &G)
 {
     //up node
@@ -472,6 +479,7 @@ bool lazy_check(tcam &tmap, pc_rule *r, int pos, vector<pc_rule*> &pc, vector<st
     }
     return false;
 }
+#endif
 
 int swap_insert(tcam & tmap, vector<struct node*> &G, pc_rule *r, int insert_pos, int up_bound, int invaild_pos) 
 {
@@ -786,7 +794,6 @@ void measure_avgmove(vector<struct node*> &G, double &avg_move_r, int &max_move_
 //    
 //}
 
-
 vector<pc_rule*> remove_redund_pkg(vector<pc_rule> &pc, vector<pc_rule> &pc_prefix) 
 {
     rule_boundary rb;
@@ -800,6 +807,7 @@ vector<pc_rule*> remove_redund_pkg(vector<pc_rule> &pc, vector<pc_rule> &pc_pref
 
     remove_redund_rt(pcr, rb, false);
     //return move(pcr);
+#ifdef PREFIX
     extend_rules(pcr, pc_prefix);
     
     cout<<"After prefix explanation: "<< pc_prefix.size()<<endl;
@@ -812,8 +820,11 @@ vector<pc_rule*> remove_redund_pkg(vector<pc_rule> &pc, vector<pc_rule> &pc_pref
     for(int i = 0; i< (int)pcr.size();i ++) {
         pc_pprefix[i]->priority = i;
     }
-
     return move(pc_pprefix);
+#else
+
+    return move(pcr);
+#endif
 
 }
 
@@ -1057,6 +1068,348 @@ void tcamcheck(vector<pc_rule*> &pc, tcam &tmap)
     }
 }
 
+vector<node*>::iterator 
+node_set_intersection (vector<node*>::iterator first1, vector<node*>::iterator last1,
+        vector<node*>::iterator first2, vector<node*>::iterator last2,
+        vector<node*>::iterator result)
+{
+    while (first1!=last1 && first2!=last2)
+    {
+        if ((*first1)->index < (*first2)->index) ++first1;
+        else if ((*first2)->index < (*first1)->index) ++first2;
+        else {
+            *result = *first1;
+            ++result; ++first1; ++first2;
+        }
+    }
+    return result;
+}
+
+
+void rule_constrain(set<pair<int, int> > &po, vector<node*> &child_c, node* min_node)
+{
+    for(auto n = child_c.begin(); n != child_c.end(); n++) {
+        if(*n == min_node)
+            continue;
+        if(po.count(pair<int, int>((*n)->index, min_node->index))) { 
+            cout<<"partial order error!"<<endl;
+        }
+        po.insert(pair<int, int> (min_node->index, (*n)->index));
+
+        if(min_node->index == 669 && (*n)->index == 461) {
+            cout<<"error"<<endl;
+        }
+
+    }
+}
+
+bool comparable(node *n1, node *n2) 
+{
+
+    if(n1->index == 461 && n2->index == 669)
+        cout<<"here"<<endl;
+
+    if(n1 == n2) {
+        return true;
+    }
+
+    if(n1 == NULL || n2 == NULL) {
+        return false;
+    }
+
+    bool ret = false;
+    for(auto n = n1->out.begin(); n != n1->out.end(); n++) {
+        ret = ret || comparable(*n, n2);
+    }
+
+
+    return ret;
+
+}
+
+void compute_minmax_rule(node *n, set<pair<int, int> > &po) 
+{
+    if(n->out.size() == 0) {
+        n->min_cost = 1;
+        n->max_cost = 1;
+        return;
+    }
+
+    if(n->min_cost != -1 && n->max_cost != -1)
+        return;
+
+    if(n->index == 342) {
+        cout<<"here"<<endl;
+    }
+
+
+
+    n->topo_order = 0;
+    node *child0 = n->out[0];
+    child0->topo_order = 1;
+   
+    //parent_c = parent_candidate
+    vector<node*> parent_c;
+    parent_c.push_back(n);
+    parent_c.push_back(child0);
+
+    for(size_t i = 1; i < n->out.size(); i++) {
+        node *childx = n->out[i];
+        int max_order = 0;
+
+        vector<node*> joint_set;
+        joint_set.resize(parent_c.size());
+        vector<node*>::iterator set_it;
+        set_it = node_set_intersection(parent_c.begin(), parent_c.end(),
+                childx->in.begin(), childx->in.end(),
+                joint_set.begin());
+
+        for(auto p = joint_set.begin(); p != set_it;
+                p++) {
+#if 0
+            if((*p)->topo_order == -1) {
+                cout<<"error"<<endl;
+            }
+#endif
+            if((*p)->topo_order > max_order) {
+                max_order = (*p)->topo_order;
+            }
+        }
+        childx->topo_order = max_order + 1;
+        parent_c.push_back(childx);
+    }
+
+    vector<node*> child_c;
+
+    for(size_t i = 0; i != n->out.size(); i++) {
+        if(n->out[i]->topo_order == 1) {
+
+            if(child_c.size() ==0) {
+                child_c.push_back(n->out[i]);
+                continue;
+            }
+
+            bool check = true;
+            for(size_t j = 0; j < child_c.size(); j++) {
+                if(comparable(child_c[j], n->out[i])){
+                    check = false;
+                    break;
+                }
+            }
+            if(check)
+                child_c.push_back(n->out[i]);
+        }
+    }
+
+    for(auto c = child_c.begin(); c != child_c.end(); c++) {
+        compute_minmax_rule(*c, po);
+    }
+
+
+    int max = 0;
+    int min = 0x7FFFFFFF;
+    node* min_node = nullptr;
+    for(auto c = child_c.begin(); c != child_c.end(); c++) {
+        if((*c)->max_cost > max) {
+            max = (*c)->max_cost;
+        }
+        if((*c)->min_cost < min) {
+            min = (*c)->min_cost;
+            min_node = *c;
+        }
+    }
+
+    rule_constrain(po, child_c, min_node);
+    n->max_cost = max + 1;
+    n->min_cost = min + 1;
+
+}
+
+int topo_sort(node *n)
+{
+    if(n->in.size() == 0) {
+        n->topo_order = 0;
+        return 0;
+    }
+
+    if(n->topo_order != -1) {
+        return n->topo_order;
+    }
+
+    int max = 0;
+    for(size_t i = 0; i < n->in.size(); i++) {
+        if(topo_sort(n->in[i]) > max) {
+            max = topo_sort(n->in[i]);
+        }
+    }
+
+    n->topo_order = max + 1;
+    return n->topo_order;
+
+}
+#if 0
+void swap_elem(vector<int> &seq, int k, int j) 
+{
+    int tmp = seq[k];
+    seq[k] = seq[j];
+    seq[j] = tmp;
+}
+#endif
+
+vector<int> make_linear(vector<node *> &G, map<int, vector<int> > &sort)
+{
+    vector<int> rule_seq;
+    //vector<int> swap_op;
+
+    rule_seq.resize(G.size());
+    //swap_op.resize(G.size(), -1);
+
+    int cnt = 0;
+    //vector<int> pp;
+
+    for(size_t i = 0; i < sort.size(); i ++) {
+        for(size_t j = 0; j < sort[i].size(); j++) {
+            rule_seq[cnt] = (sort[i][j]);
+            cnt ++;
+        }
+        //pp.push_back(cnt);
+    }
+#if 0
+    for(size_t i = 0; i < rule_seq.size() -1; i++) {
+        size_t j;
+        for(j = i + 1 ; i < rule_seq.size(); i++) {
+            if(overlap(G[rule_seq[i]]->r, G[rule_seq[j]]->r)) {
+                break;
+            }
+        }
+
+        auto pf = find_if(pp.begin(), pp.end(), [&j](int i){ return j<(size_t)i;});
+        int forder = pf - pp.begin();
+
+        if(rule_seq[j] == seq[rule_seq[i]] || seq[rule_seq[i]] == 0) {
+            continue;
+        }
+        else {
+            for(size_t k = j+1; k < rule_seq.size();k++) {
+                if(rule_seq[k] == seq[rule_seq[i]]) {
+
+                    auto pk = find_if(pp.begin(), pp.end(), [&k](int i){ return k<(size_t)i;});
+                    int korder = pk - pp.begin();
+                    if(korder != forder) {
+                        //cout<<korder<<" "<<forder<<endl;
+                        break;
+                    }
+
+                   swap_elem(rule_seq, k, j);
+                   //if(swap_op[k] == -1){
+                   //    swap_op[k] = j;
+                   //}
+                   //else if(j < swap_op[k]) {
+                   //    swap_op[k] = j;
+                   //}
+                   break;
+                }
+            }
+            //if(!flag) {
+            //    cout<<"no found"<<endl;
+            //    cout<<rule_seq[i]<<" "<<seq[rule_seq[i]]<<endl;
+            //}
+
+        }
+    }
+#endif
+
+    return move(rule_seq);
+}
+
+void add_rule_constrain(vector<node*> &G, set<pair<int, int> > &po)
+{
+    for(auto p = po.begin(); p != po.end(); p++) {
+        G[p->first]->out.push_back(G[p->second]);
+        G[p->second]->in.push_back(G[p->first]);
+    }
+
+}
+
+vector<pc_rule*>  make_seq(vector<node*> &G, set<pair<int, int> > &po)
+{
+    //first do topo sort
+    
+    add_rule_constrain(G, po);
+
+    map<int, vector<int> > sort;
+    for(size_t i = 0; i < G.size(); i++) {
+        G[i]->topo_order = -1;
+    }
+
+    for(size_t i = 0; i < G.size(); i++) {
+        int order = topo_sort(G[i]); 
+        sort[order].push_back(i);
+    }
+
+    vector<int> rule_seq = make_linear(G,  sort);
+    vector<pc_rule*> pc_sort;
+
+    for(size_t i = 0; i < G.size(); i++) {
+        pc_sort.push_back(G[rule_seq[i]]->r);
+    }
+
+    return move(pc_sort);
+
+}
+
+void print_po(set<pair<int, int> > &po)
+{
+    for(auto p = po.begin(); p != po.end(); p++) {
+        cout<<p->first<<" "<<p->second<<endl;
+    }
+
+}
+
+void compute_minmax_cost(vector<pc_rule*> &pc)
+{
+    vector<node*> G;
+    set<pair<int, int> > partial_order;
+    
+    build_graph(pc, G);
+
+    int cnt =0;
+    for(auto n = G.begin(); n != G.end(); n++) {
+        compute_minmax_rule(*n, partial_order);
+        cout<<"finish "<<cnt++<<endl;
+    }
+
+    int max = 0;
+    int min = 0x7fffffff;
+    int sum_max = 0;
+    int sum_min = 0;
+    for(auto n = G.begin(); n != G.end(); n++) {
+        if((*n)->max_cost > max) {
+            max = (*n)->max_cost;
+        }
+        
+        if((*n)->min_cost < min) {
+            min = (*n)->min_cost;
+        }
+        sum_max += (*n)->max_cost;
+        sum_min += (*n)->min_cost;
+    }
+
+    cout<<"max cost "<< max <<" min cost "<<min<<endl;
+    cout<<"max avg "<<(double)sum_max/pc.size() << " min avg "<<(double)sum_min/pc.size()<<endl;
+
+    //a = adjusted
+    //vector<pc_rule*> apc = make_seq(G, partial_order);
+    //vector<node*> aG;
+    //build_graph(apc, aG);
+    //measure(aG);
+    //
+    //print_po(partial_order);
+
+
+
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -1073,7 +1426,7 @@ int main(int argc, char *argv[])
 
     //pure_arch(pc_r); 
     //hybrid_arch(pc_r);
-
+#ifdef TCAM_CHECK
     tcam tmap;
     vector<struct node*> G;
     for(size_t i = 0; i < (pc_r.size()-1)/2; i++) {
@@ -1097,7 +1450,13 @@ int main(int argc, char *argv[])
     cout<<"pc.size() = "<<pc.size()<<endl;
     cout<<"tmap.pc.size() = "<<tmap.pc.size()<<endl;
     cout<<"check over"<<endl;
+#endif
 
+    compute_minmax_cost(pc_r);
+
+    vector<node*> G;
+    build_graph(pc_r, G);
+    measure(G);
     //double avg_move;
     //int max_move;
     //measure_avgmove(G, avg_move, max_move);
