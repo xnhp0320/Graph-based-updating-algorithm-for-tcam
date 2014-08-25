@@ -1331,11 +1331,58 @@ void add_rule_constrain(vector<node*> &G, set<pair<int, int> > &po)
 
 }
 
+int detect_cycle_(node* n, vector<node*> &stack, vector<int> &cycle)
+{
+    if(cycle[n->index] != -1) {
+        return cycle[n->index];
+    }
+
+    if(find(stack.begin(), stack.end(), n) != stack.end()) {
+        cout<<"detected a cycle: ";
+        for(auto nx = stack.begin(); nx != stack.end(); nx++) {
+            cout<<(*nx)->index<<" ";
+        }
+        cout<<n->index<<endl;
+
+        return 1;
+    }
+
+    int ret = 0;
+    for(auto c = n->out.begin(); c != n->out.end() && !ret; c++) {
+        stack.push_back(n);
+        ret = ret || detect_cycle_(*c, stack, cycle);
+        stack.pop_back();
+    }
+
+    cycle[n->index] = ret;
+
+    return ret;
+
+}
+
+int detect_cycle(vector<node*> &G)
+{
+    vector<node*> stack;
+    vector<int> cycles(G.size(), -1);
+
+    int ret = 0;
+    for(size_t i = 0; i < G.size(); i++) {
+        detect_cycle_(G[i], stack, cycles);
+    }
+    for_each(cycles.begin(), cycles.end(), [&ret](int x){ret = ret || x;});
+
+    return ret;
+}
+
 vector<pc_rule*>  make_seq(vector<node*> &G, set<pair<int, int> > &po)
 {
     //first do topo sort
     
     add_rule_constrain(G, po);
+    if(detect_cycle(G)) {
+        cout<<"The G exist a cycle, fail"<<endl;
+        return move(vector<pc_rule*>());
+    }
 
     map<int, vector<int> > sort;
     for(size_t i = 0; i < G.size(); i++) {
