@@ -1096,9 +1096,9 @@ void rule_constrain(set<pair<int, int> > &po, vector<node*> &child_c, node* min_
         }
         po.insert(pair<int, int> (min_node->index, (*n)->index));
 
-        if(min_node->index == 669 && (*n)->index == 461) {
-            cout<<"error"<<endl;
-        }
+        //if(min_node->index == 669 && (*n)->index == 461) {
+        //    cout<<"error"<<endl;
+        //}
 
     }
 }
@@ -1106,8 +1106,8 @@ void rule_constrain(set<pair<int, int> > &po, vector<node*> &child_c, node* min_
 bool comparable(node *n1, node *n2) 
 {
 
-    if(n1->index == 461 && n2->index == 669)
-        cout<<"here"<<endl;
+    //if(n1->index == 461 && n2->index == 669)
+    //    cout<<"here"<<endl;
 
     if(n1 == n2) {
         return true;
@@ -1138,9 +1138,9 @@ void compute_minmax_rule(node *n, set<pair<int, int> > &po)
     if(n->min_cost != -1 && n->max_cost != -1)
         return;
 
-    if(n->index == 342) {
-        cout<<"here"<<endl;
-    }
+    //if(n->index == 342) {
+    //    cout<<"here"<<endl;
+    //}
 
 
 
@@ -1373,10 +1373,10 @@ void compute_minmax_cost(vector<pc_rule*> &pc)
     
     build_graph(pc, G);
 
-    int cnt =0;
+    //int cnt =0;
     for(auto n = G.begin(); n != G.end(); n++) {
         compute_minmax_rule(*n, partial_order);
-        cout<<"finish "<<cnt++<<endl;
+        //cout<<"finish "<<cnt++<<endl;
     }
 
     int max = 0;
