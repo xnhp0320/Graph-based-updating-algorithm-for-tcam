@@ -1446,10 +1446,10 @@ void compute_minmax_cost(vector<pc_rule*> &pc)
     cout<<"max avg "<<(double)sum_max/pc.size() << " min avg "<<(double)sum_min/pc.size()<<endl;
 
     //a = adjusted
-    //vector<pc_rule*> apc = make_seq(G, partial_order);
-    //vector<node*> aG;
-    //build_graph(apc, aG);
-    //measure(aG);
+    vector<pc_rule*> apc = make_seq(G, partial_order);
+    vector<node*> aG;
+    build_graph(apc, aG);
+    measure(aG);
     //
     //print_po(partial_order);
 
